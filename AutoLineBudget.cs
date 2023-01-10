@@ -182,7 +182,7 @@ namespace AutoLineBudget
                         newOccupancy = (newOccupancy - avgOccupancy) * hoursNum / 24f + avgOccupancy;
 
                         float vehChange = (newOccupancy - avgOccupancy) * vehCount;
-                        if (Math.Abs(vehChange) < inertia)
+                        if (Math.Abs(vehChange + inertia) < inertia)
                             continue;
                         ushort newBudget = (ushort)Mathf.CeilToInt(line.m_budget / newOccupancy * avgOccupancy);
                         //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] Budget of line " + line.m_lineNumber + " changed from " + line.m_budget + " to " + newBudget + " speed " + lineSpeed);
