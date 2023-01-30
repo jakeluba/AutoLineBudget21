@@ -1,4 +1,4 @@
-﻿using ICities;
+using ICities;
 using ColossalFramework;
 using ColossalFramework.Plugins;
 using System;
@@ -26,8 +26,6 @@ namespace AutoLineBudget
     {
         public override void OnLevelLoaded(LoadMode mode)
         {
-            //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] OnLevelLoaded");
-
             base.OnLevelLoaded(mode);
 
             GameObject go = new GameObject("AutoLineBudget");
@@ -47,7 +45,6 @@ namespace AutoLineBudget
 
         void Start()
         {
-            //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] AutoLineBudget Started");
             lineHourFlow = new Dictionary<int, Dictionary<int, float>>();
         }
 
@@ -64,8 +61,6 @@ namespace AutoLineBudget
 
             long Ticks = Singleton<SimulationManager>.instance.m_currentGameTime.Ticks;
             long Frames = Ticks / Singleton<SimulationManager>.instance.m_timePerFrame.Ticks;
-            //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] Update ");
-            //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] currentGameTime.Ticks " + Ticks);
 
             //Calendar time
             //TicksPerMillisecond     10000
@@ -87,7 +82,6 @@ namespace AutoLineBudget
             if (hour == prevHour)
                 return;
             prevHour = hour;
-            //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] Recalculate. Frames " + Frames + " hour " + hour);
 
             var changeLog = new Dictionary<ushort, float>();
             for (ushort lnId = 1; lnId < 256; ++lnId)
@@ -95,6 +89,9 @@ namespace AutoLineBudget
                 if ((Singleton<TransportManager>.instance.m_lines.m_buffer[lnId].m_flags & (TransportLine.Flags.Created | TransportLine.Flags.Temporary)) == TransportLine.Flags.Created)
                 {
                     TransportLine line = Singleton<TransportManager>.instance.m_lines.m_buffer[lnId];
+                    //bool debug = false;
+                    //if (Singleton<TransportManager>.instance.GetLineName(lnId) == "Bus Line 15")
+                        //debug = true;
                     int lnBudget = Singleton<EconomyManager>.instance.GetBudget(line.Info.m_class);
                     if (line.m_lineNumber != 0)
                     {
@@ -102,8 +99,8 @@ namespace AutoLineBudget
                             lineHourFlow.Add(lnId, new Dictionary<int, float>());
                         VehicleManager vehInstance = Singleton<VehicleManager>.instance;
                         int fullVehCount = 0;
-                        int notFullVehOccupancy = 0;
-                        int notFullVehCapacity = 0;
+                        float notFullVehOccupancy = 0;
+                        float notFullVehCapacity = 0;
                         int vehCount = 0;
                         int lineCapacity = 0;
                         ushort vehId = line.m_vehicles;
@@ -119,7 +116,16 @@ namespace AutoLineBudget
                             }
                             else
                             {
-                                notFullVehOccupancy += current2;
+                                /*
+                                //Occupancy enhancer - an alternative method to count in passengers left at stops
+                                float occFactor = 1;
+                                if (current2 / max2 > 0.5)
+                                {
+                                    occFactor = (float)(4 * Math.Pow(current2 / max2, 2) - 4 * current2 / max2 + 2);
+                                }
+                                //notFullVeh means now allVeh
+                                */
+                                notFullVehOccupancy += current2;// * occFactor;
                                 notFullVehCapacity += max2;
                             }
                             lineCapacity += max2;
@@ -127,14 +133,21 @@ namespace AutoLineBudget
                             vehCount++;
                         }
                         if (lineCapacity == 0)
+                        {
+                            //if (debug) DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] " + Singleton<TransportManager>.instance.GetLineName(lnId)
+                                //+ " lineCapacity " + lineCapacity);
                             continue;
+                        }
                         if (vehCount != line.CalculateTargetVehicleCount())
+                        {
+                            //if (debug) DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] " + Singleton<TransportManager>.instance.GetLineName(lnId)
+                                //+ " vehCount " + vehCount + " targetVehicleCount " + line.CalculateTargetVehicleCount());
                             continue;
-                        //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] Line " + line.m_lineNumber + " vehCount " + vehCount + " speed " + lineSpeed);
+                        }
 
                         float notFullVehAvgOccupancy = 0f;
                         if (notFullVehCapacity != 0)
-                            notFullVehAvgOccupancy = notFullVehOccupancy / (float)notFullVehCapacity;
+                            notFullVehAvgOccupancy = notFullVehOccupancy / notFullVehCapacity;
                         float fullVehAvgOccupancy = 2f;
                         if (fullVehCount > 0 && vehCount != fullVehCount)
                         {
@@ -142,6 +155,7 @@ namespace AutoLineBudget
                             fullVehAvgOccupancy = 1f + occSpread * fullVehCount / 2f;
                         }
                         float avgCurrOccupancy = (notFullVehAvgOccupancy * (vehCount - fullVehCount) + fullVehAvgOccupancy * fullVehCount) / vehCount;
+                        //float avgCurrOccupancy = notFullVehAvgOccupancy;
                         float lineFlow = lineCapacity * avgCurrOccupancy;
 
                         //low frequency line flow adjustment
@@ -152,9 +166,6 @@ namespace AutoLineBudget
                         float vehSpacing = line.m_totalLength / vehCount;
                         float lineSpeed = line.m_totalLength / (line.m_averageInterval * vehCount);
                         lineFlow *= Math.Min(1f, 0.025f * (float)Math.Exp(0.0006f * vehSpacing) * lineSpeed);
-
-                        //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] " + Singleton<TransportManager>.instance.GetLineName(lnId)
-                        //    + " vehCount " + vehCount + " lineSpeed " + lineSpeed);
 
                         lineHourFlow[lnId][hour] = lineFlow;
 
@@ -172,26 +183,33 @@ namespace AutoLineBudget
                         }
                         avgFlow /= hoursNum;
                         if (avgFlow == 0)
+                        {
+                            //if (debug) DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] " + Singleton<TransportManager>.instance.GetLineName(lnId)
+                                //+ " hoursNum " + hoursNum + " avgFlow " + avgFlow);
                             continue;
+                        }
                         float avgOccupancy = avgFlow / lineCapacity;
-
-                        float newOccupancy = Math.Min(Math.Max(0.25f, (line.m_budget - lnBudget + 200) / 400f), 1f);
-                        //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] lnId " + lnId + " lnBudget " + lnBudget + " line.m_budget " + line.m_budget + " newOccupancy " + newOccupancy);
+                        float newOccupancy = Math.Min(Math.Max(0.1f, (float)(0.00005 * Math.Pow(lnBudget, 2) - 0.015 * lnBudget + 1.375)), 1f);
 
                         //correction for incomplete data
                         newOccupancy = (newOccupancy - avgOccupancy) * hoursNum / 24f + avgOccupancy;
 
-                        float vehChange = (newOccupancy - avgOccupancy) * vehCount;
+                        float vehChange = avgOccupancy * vehCount / newOccupancy - vehCount;
                         if (Math.Abs(vehChange + inertia) < inertia)
+                        {
+                            //if (debug) DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] " + Singleton<TransportManager>.instance.GetLineName(lnId)
+                                //+ " vehChange " + vehChange + " inertia " + inertia);
                             continue;
+                        }
                         ushort newBudget = (ushort)Mathf.CeilToInt(line.m_budget / newOccupancy * avgOccupancy);
-                        //DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] Budget of line " + line.m_lineNumber + " changed from " + line.m_budget + " to " + newBudget + " speed " + lineSpeed);
+                        //if (debug) DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, "[AutoLineBudget] " + Singleton<TransportManager>.instance.GetLineName(lnId)
+                                //+ " trnBudget " + lnBudget + " oldOccupancy " + avgOccupancy + " newOccupancy " + newOccupancy + " oldBudget " + line.m_budget + " newBudget " + newBudget);
+
                         Singleton<TransportManager>.instance.m_lines.m_buffer[lnId].m_budget = newBudget;
                         changeLog.Add(lnId, vehChange/vehCount);
                     }
                 } 
             }
-            //avgSpeed = speedSum / speedNum;
             if (changeLog.Count != 0)
             {
                 foreach (KeyValuePair<ushort, float> kvp in changeLog)
