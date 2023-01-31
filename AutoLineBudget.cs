@@ -119,9 +119,10 @@ namespace AutoLineBudget
                                 /*
                                 //Occupancy enhancer - an alternative method to count in passengers left at stops
                                 float occFactor = 1;
-                                if (current2 / max2 > 0.5)
+                                float occShare = current2 / (float)max2;
+                                if (occShare > 0.5)
                                 {
-                                    occFactor = (float)(4 * Math.Pow(current2 / max2, 2) - 4 * current2 / max2 + 2);
+                                    occFactor = (float)(4 * Math.Pow(occShare, 2) - 4 * occShare + 2);
                                 }
                                 //notFullVeh means now allVeh
                                 */
@@ -166,7 +167,6 @@ namespace AutoLineBudget
                         float vehSpacing = line.m_totalLength / vehCount;
                         float lineSpeed = line.m_totalLength / (line.m_averageInterval * vehCount);
                         lineFlow *= Math.Min(1f, 0.025f * (float)Math.Exp(0.0006f * vehSpacing) * lineSpeed);
-
                         lineHourFlow[lnId][hour] = lineFlow;
 
                         float hoursNum = lineHourFlow[lnId].Count;
@@ -189,7 +189,7 @@ namespace AutoLineBudget
                             continue;
                         }
                         float avgOccupancy = avgFlow / lineCapacity;
-                        float newOccupancy = Math.Min(Math.Max(0.1f, (float)(0.00005 * Math.Pow(lnBudget, 2) - 0.015 * lnBudget + 1.375)), 1f);
+                        float newOccupancy = Math.Min(Math.Max(0.1f, 43.75f / lnBudget), 1f);
 
                         //correction for incomplete data
                         newOccupancy = (newOccupancy - avgOccupancy) * hoursNum / 24f + avgOccupancy;
@@ -206,7 +206,7 @@ namespace AutoLineBudget
                                 //+ " trnBudget " + lnBudget + " oldOccupancy " + avgOccupancy + " newOccupancy " + newOccupancy + " oldBudget " + line.m_budget + " newBudget " + newBudget);
 
                         Singleton<TransportManager>.instance.m_lines.m_buffer[lnId].m_budget = newBudget;
-                        changeLog.Add(lnId, vehChange/vehCount);
+                        changeLog.Add(lnId, vehChange / vehCount);
                     }
                 } 
             }
